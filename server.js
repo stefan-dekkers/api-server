@@ -14,32 +14,40 @@ var logger = require('tracer').console();
 // In memory database
 let database = {
     users: [
-      {
-        id: 0,
-        firstName: 'John',
-        lastName: 'Doe',
-        emailAdress: 'john.doe@example.com'
-      },
-      {
-        id: 1,
-        firstName: 'Jane',
-        lastName: 'Smith',
-        emailAdress: 'jane.smith@example.com'
-      },
-      {
-        id: 2,
-        firstName: 'David',
-        lastName: 'Lee',
-        emailAdress: 'david.lee@example.com'
-      },
-      {
-        id: 3,
-        firstName: 'Sarah',
-        lastName: 'Jones',
-        emailAdress: 'sarah.jones@example.com'
-      }
-    ]
-  };
+        {
+            id: 0,
+            firstName: 'John',
+            lastName: 'Doe',
+            emailAddress: 'john.doe@example.com'
+        },
+        {
+            id: 1,
+            firstName: 'Jane',
+            lastName: 'Smith',
+            emailAddress: 'jane.smith@example.com'
+        },
+        {
+            id: 2,
+            firstName: 'David',
+            lastName: 'Lee',
+            emailAddress: 'david.lee@example.com'
+        },
+        {
+            id: 3,
+            firstName: 'Sarah',
+            lastName: 'Jones',
+            emailAddress: 'sarah.jones@example.com'
+        }
+    ],
+    profile: {
+            id: 1,
+            userName: 'Stefan-Dekkers',
+            password: '123',
+            firstName: 'Stefan',
+            lastName: 'Dekkers',
+            emailAddress: 'stefan.dekkers@example.com'
+        }
+};
 
 let index = database.users.length;
 
@@ -55,8 +63,8 @@ app.use('*', (req, res, next) => {
 app.get('/api/info', (req, res) => {
     logger.log('Info endpoint');
 
-    res.status(201).json({
-        status: 201,
+    res.status(200).json({
+        status: 200,
         message: 'Server info-endpoint',
         data: {
             studentName: 'Stefan',
@@ -67,7 +75,7 @@ app.get('/api/info', (req, res) => {
 });
   
 // UC-201
-app.post('/api/register', (req, res) => {
+app.post('/api/user', (req, res) => {
     logger.log('UC-201');
 
     const user = req.body;
@@ -76,34 +84,25 @@ app.post('/api/register', (req, res) => {
     try {
         // assert(user === {}, 'Userinfo is missing');
         assert(typeof user.firstName === 'string', 'firstName must be a string');
-        assert(
-            typeof user.emailAdress === 'string',
-            'emailAddress must be a string'
-        );
+        assert(typeof user.lastName === 'string', 'lastName must be a string');
+        assert(typeof user.emailAddress === 'string','emailAddress must be a string');
     } catch (err) {
-        // Als één van de asserts failt sturen we een error response.
         res.status(400).json({
             status: 400,
             message: err.message.toString(),
             data: {}
         });
-        // Nodejs is asynchroon. We willen niet dat de applicatie verder gaat
-        // wanneer er al een response is teruggestuurd.
         return;
     }
   
-    // Zorg dat de id van de nieuwe user toegevoegd wordt
-    // en hoog deze op voor de volgende insert.
     user.id = index++;
-    // User toevoegen aan database
+    console.log('user.id = ', user.id);
     database['users'].push(user);
+    console.log('database[users] = ', database['users']);
   
-    // Stuur het response terug
     res.status(200).json({
         status: 200,
-        message: `User met id ${user.id} is toegevoegd`,
-        // Wat je hier retourneert is een keuze; misschien wordt daar in het
-        // ontwerpdocument iets over gezegd.
+        message: `User with id ${user.id} is added`,
         data: user
     });
 });
@@ -112,7 +111,6 @@ app.post('/api/register', (req, res) => {
 app.get('/api/user', (req, res) => {
     logger.log('UC-202');
 
-    // er moet precies 1 response verstuurd worden.
     const statusCode = 200;
     res.status(statusCode).json({
         status: statusCode,
@@ -125,29 +123,128 @@ app.get('/api/user', (req, res) => {
 app.get('/api/user/profile', (req, res) => {
     logger.log('UC-203');
 
-    res.send('GET request to profile')
-})
+    res.status(200).json({
+        status: 200,
+        message: 'User profile retrieved',
+        data: database.profile
+    });
+});
 
 // UC-204
 app.get('/api/user/:userId', (req, res) => {
     logger.log('UC-204');
 
-    res.send('GET request to user with userId')
-})
+    const { userId } = req.params;
+  
+    try {
+        assert(typeof parseInt(userId) === 'number', 'userId must be a number');
+    } catch (err) {
+        res.status(400).json({
+            status: 400,
+            message: err.message.toString(),
+            data: {}
+        });
+        return;
+    }
+
+    const user = database['users'].find(u => u.id === parseInt(userId));
+
+    if (!user) {
+        res.status(404).json({
+            status: 404,
+            message: `User with id ${userId} not found`,
+            data: {}
+        });
+        return;
+    }
+    
+    res.status(200).json({
+        status: 200,
+        message: `User with id ${userId} retrieved`,
+        data: user
+    });
+});
 
 // UC-205
 app.put('/api/user/:userId', (req, res) => {
     logger.log('UC-205');
-
-    res.send('GET request to user with userId')
-})
+  
+    const { userId } = req.params;
+  
+    try {
+        assert(typeof parseInt(userId) === 'number', 'userId must be a number');
+    } catch (err) {
+        res.status(400).json({
+            status: 400,
+            message: err.message.toString(),
+            data: {}
+        });
+        return;
+    }
+  
+    const userIndex = database['users'].findIndex(u => u.id === parseInt(userId));
+  
+    if (userIndex === -1) {
+        res.status(404).json({
+            status: 404,
+            message: `User with id ${userId} not found`,
+            data: {}
+        });
+        return;
+    }
+  
+    const user = database['users'][userIndex];
+  
+    const updatedUser = {
+      ...user,
+      ...req.body
+    };
+  
+    database['users'][userIndex] = updatedUser;
+  
+    res.status(200).json({
+      status: 200,
+      message: `User with id ${userId} updated`,
+      data: updatedUser
+    });
+});  
 
 // UC-206
 app.delete('/api/user/:userId', (req, res) => {
-    logger.log('UC-206');
-
-    res.send('GET request to user with userId')
-})
+    logger.log('UC-205');
+  
+    const { userId } = req.params;
+  
+    try {
+      assert(typeof parseInt(userId) === 'number', 'userId must be a number');
+    } catch (err) {
+      res.status(400).json({
+        status: 400,
+        message: err.message.toString(),
+        data: {},
+      });
+      return;
+    }
+  
+    const userIndex = database['users'].findIndex(u => u.id === parseInt(userId));
+  
+    if (userIndex === -1) {
+      res.status(404).json({
+        status: 404,
+        message: `User with id ${userId} not found`,
+        data: {},
+      });
+      return;
+    }
+  
+    database['users'].splice(userIndex, 1);
+  
+    res.status(200).json({
+      status: 200,
+      message: `User with id ${userId} deleted`,
+      data: {},
+    });
+});
   
 // Sink
 app.use('*', (req, res) => {
