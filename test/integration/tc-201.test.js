@@ -5,7 +5,7 @@ const app = require('../../server');
 chai.use(chaiHttp);
 const expect = chai.expect;
 
-describe('TC-201-5', function () {
+describe('TC-201', function () {
     it('should add a user to the in-mem database and return the user data', (done) => {
         const user = {
             firstName: 'John',
@@ -27,4 +27,24 @@ describe('TC-201-5', function () {
                 done();
             });
     });
+
+    it('should return 409 status when trying to add a user with an already taken email address', (done) => {
+        const user = {
+            firstName: 'John',
+            lastName: 'Doe',
+            emailAddress: 'johndoe@example.com'
+        };
+        
+        chai.request(app)
+            .post('/api/user')
+            .send(user)
+            .end((err, res) => {
+                expect(err).to.be.null;
+                expect(res).to.have.status(409);
+                expect(res.body.status).to.equal(409);
+                expect(res.body.message).to.equal('Email address already taken');
+                done();
+            });
+    });
 });
+

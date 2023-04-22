@@ -38,15 +38,7 @@ let database = {
             lastName: 'Jones',
             emailAddress: 'sarah.jones@example.com'
         }
-    ],
-    profile: {
-            id: 1,
-            userName: 'Stefan-Dekkers',
-            password: '123',
-            firstName: 'Stefan',
-            lastName: 'Dekkers',
-            emailAddress: 'stefan.dekkers@example.com'
-        }
+    ]
 };
 
 let index = database.users.length;
@@ -94,11 +86,19 @@ app.post('/api/user', (req, res) => {
         });
         return;
     }
+
+    const existingUser = database['users'].find(u => u.emailAddress === user.emailAddress);
+    if (existingUser) {
+        res.status(409).json({
+            status: 409,
+            message: 'Email address already taken',
+            data: {}
+        });
+        return;
+    }
   
     user.id = index++;
-    console.log('user.id = ', user.id);
     database['users'].push(user);
-    console.log('database[users] = ', database['users']);
   
     res.status(200).json({
         status: 200,
@@ -123,10 +123,10 @@ app.get('/api/user', (req, res) => {
 app.get('/api/user/profile', (req, res) => {
     logger.log('UC-203');
 
-    res.status(200).json({
-        status: 200,
-        message: 'User profile retrieved',
-        data: database.profile
+    res.status(501).json({
+        status: 501,
+        message: "This functionality has not yet been realized.",
+        data: {}
     });
 });
 

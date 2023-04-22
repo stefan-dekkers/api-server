@@ -5,7 +5,7 @@ const app = require('../../server');
 chai.use(chaiHttp);
 const expect = chai.expect;
 
-describe('TC-202-1', function () {
+describe('TC-202', function () {
     it('should return all users from the database', (done) => {
         chai.request(app)
             .get('/api/user')
