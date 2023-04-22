@@ -259,8 +259,6 @@ app.use('*', (req, res) => {
   
 // Start server
 app.listen(port, () => {
-    logger.log('Starting server...');
-
     console.log(`Example app listening on port ${port}`);
 });
   
