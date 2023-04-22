@@ -10,7 +10,7 @@ describe('TC-206', function () {
         const res = await chai.request(app).delete('/api/user/0');
         expect(res).to.have.status(200);
         expect(res.body).to.have.property('status').to.equal(200);
-        expect(res.body).to.have.property('message').to.equal('User with id 0 is deleted');
+        expect(res.body).to.have.property('message').to.equal('User with id 0 deleted');
         expect(res.body).to.have.property('data').to.be.an('object');
     });
 
