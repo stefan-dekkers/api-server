@@ -6,12 +6,12 @@ chai.use(chaiHttp);
 const assert = chai.assert;
 
 describe('TC-205', function () {
-    it('Should update user data if id exists', (done) => {
+    it('should update user data if id exists', (done) => {
         const userId = 2;
         const newUser = {
             firstName: 'Mike',
             lastName: 'Johnson',
-            emailAddress: 'mike.johnson@example.com'
+            emailAddress: 'mike.johnson@example.com',
         };
         chai.request(app)
             .put(`/api/user/${userId}`)
@@ -26,12 +26,12 @@ describe('TC-205', function () {
             });
     });
 
-    it('Should return an error message if id does not exist', (done) => {
+    it('should return an error message if id does not exist', (done) => {
         const userId = 99;
         const newUser = {
             firstName: 'Mike',
             lastName: 'Johnson',
-            emailAddress: 'mike.johnson@example.com'
+            emailAddress: 'mike.johnson@example.com',
         };
         chai.request(app)
             .put(`/api/user/${userId}`)
@@ -43,4 +43,3 @@ describe('TC-205', function () {
             });
     });
 });
-

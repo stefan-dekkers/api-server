@@ -10,9 +10,9 @@ describe('TC-201', function () {
         const user = {
             firstName: 'John',
             lastName: 'Doe',
-            emailAddress: 'johndoe@example.com'
+            emailAddress: 'johndoe@example.com',
         };
-        
+
         chai.request(app)
             .post('/api/user')
             .send(user)
@@ -32,9 +32,9 @@ describe('TC-201', function () {
         const user = {
             firstName: 'John',
             lastName: 'Doe',
-            emailAddress: 'johndoe@example.com'
+            emailAddress: 'johndoe@example.com',
         };
-        
+
         chai.request(app)
             .post('/api/user')
             .send(user)
@@ -47,4 +47,3 @@ describe('TC-201', function () {
             });
     });
 });
-
