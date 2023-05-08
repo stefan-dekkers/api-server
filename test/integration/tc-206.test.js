@@ -5,7 +5,7 @@ const app = require('../../server');
 chai.use(chaiHttp);
 const expect = chai.expect;
 
-describe('TC-206', function () {
+describe('Tests for: UC-206', function () {
     it('should delete user with a valid id', async () => {
         const res = await chai.request(app).delete('/api/user/0');
         expect(res).to.have.status(200);

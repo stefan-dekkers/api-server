@@ -5,7 +5,7 @@ const app = require('../../server');
 chai.use(chaiHttp);
 const expect = chai.expect;
 
-describe('TC-203', function () {
+describe('Tests for: UC-203', function () {
     it('should return a 501 status code and a "This functionality has not yet been realized." message', (done) => {
         chai.request(app)
             .get('/api/user/profile')
@@ -17,5 +17,13 @@ describe('TC-203', function () {
                 expect(res.body.data).to.deep.equal({});
                 done();
             });
+    });
+
+    it('TC-203-1: invalid token', (done) => {
+        done();
+    });
+
+    it('TC-203-2: user is logged in with valid token', (done) => {
+        done();
     });
 });

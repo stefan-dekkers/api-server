@@ -15,7 +15,7 @@ router.get('/profile', userController.getProfile);
 router.get('/:userId', userController.getUserWithID);
 
 // UC-205
-router.put('/:userId', userController.changeUser);
+router.put('/:userId', userController.updateUser);
 
 // UC-206
 router.delete('/:userId', userController.deleteUser);

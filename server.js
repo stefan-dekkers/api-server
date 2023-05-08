@@ -45,6 +45,16 @@ app.use('*', (req, res) => {
     });
 });
 
+// Express error handler
+app.use((err, req, res, next) => {
+    logger.error(err.status, err.message);
+    res.status(err.status).json({
+        status: err.status,
+        message: err.message,
+        data: {},
+    });
+});
+
 // Start server
 app.listen(port, () => {
     logger.info(`API server listening on port ${port}`);

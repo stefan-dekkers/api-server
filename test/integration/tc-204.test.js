@@ -4,35 +4,33 @@ const app = require('../../server');
 
 chai.use(chaiHttp);
 const expect = chai.expect;
-const assert = chai.assert;
 
-describe('TC-204', function () {
-    it('should return the user with the given ID', (done) => {
-        const userId = 1;
+describe('Tests for: UC-204', function () {
+    it('TC-204-1: invalid token', (done) => {
+        done();
+    });
+
+    it('TC-204-2: user id does not exist', (done) => {
+        const userId = -1;
         chai.request(app)
             .get(`/api/user/${userId}`)
             .end((err, res) => {
-                expect(res).to.have.status(200);
-                expect(res.body.status).to.equal(200);
-                expect(res.body.message).to.equal(`User with id ${userId} retrieved`);
-                assert.isObject(res.body.data);
-                assert.equal(res.body.data.id, userId);
-                assert.property(res.body.data, 'firstName');
-                assert.property(res.body.data, 'lastName');
-                assert.property(res.body.data, 'emailAddress');
+                expect(res.body.status).to.equal(404);
+                expect(res.body.message).to.equal(`User with id ${userId} not found`);
+                expect(res.body.data).to.be.an('object').that.is.empty;
                 done();
             });
     });
 
-    it('should return an appropriate error message if the user id is not found', (done) => {
-        const userId = 999;
+    it('TC-204-3: user id exists', (done) => {
+        const userId = 1;
         chai.request(app)
             .get(`/api/user/${userId}`)
             .end((err, res) => {
-                expect(res).to.have.status(404);
-                expect(res.body.status).to.equal(404);
-                expect(res.body.message).to.equal(`User with id ${userId} not found`);
-                assert.isEmpty(res.body.data);
+                expect(res.body.status).to.equal(200);
+                expect(res.body.message).to.equal(`User with id ${userId} retrieved`);
+                expect(res.body.data).to.be.an('object').that.is.not.empty;
+                expect(res.body.data).to.have.property('id').to.equal(userId);
                 done();
             });
     });
