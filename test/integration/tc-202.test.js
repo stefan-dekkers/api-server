@@ -17,9 +17,9 @@ describe('Tests for: UC-202', function () {
             });
     });
 
-    it('TC-202-2: ', (done) => {
-        done();
-    });
+    // it('TC-202-2: ', (done) => {
+    //     done();
+    // });
 
     it('TC-202-3: show users where isActive = false', (done) => {
         chai.request(app)
@@ -49,7 +49,7 @@ describe('Tests for: UC-202', function () {
             });
     });
 
-    it('TC-202-5: ', (done) => {
-        done();
-    });
+    // it('TC-202-5: ', (done) => {
+    //     done();
+    // });
 });

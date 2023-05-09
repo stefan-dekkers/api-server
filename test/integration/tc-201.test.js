@@ -1,6 +1,7 @@
 const chai = require('chai');
 const chaiHttp = require('chai-http');
 const app = require('../../server');
+
 const logger = require('../../src/util/utils').logger;
 const pool = require('../../src/util/mysql-db');
 
@@ -10,9 +11,9 @@ const expect = chai.expect;
 describe('Tests for: UC-201', function () {
     it('TC-201-1: required field is missing', (done) => {
         const user = {
-            firstName: 'John',
-            lastName: 'Doe',
-            password: 'password123',
+            firstName: 'TC',
+            lastName: '201-1',
+            password: 'secret',
         };
 
         chai.request(app)
@@ -20,7 +21,7 @@ describe('Tests for: UC-201', function () {
             .send(user)
             .end((err, res) => {
                 expect(res.body.status).to.equal(400);
-                expect(res.body.message).to.equal('emailAddress must be a string');
+                expect(res.body.message).to.equal('emailAddress is missing');
                 expect(res.body.data).to.be.an('object').that.is.empty;
                 done();
             });
@@ -28,10 +29,10 @@ describe('Tests for: UC-201', function () {
 
     it('TC-201-2: invalid email', (done) => {
         const user = {
-            firstName: 'John',
-            lastName: 'Doe',
-            emailAddress: 'invalidemail',
-            password: 'password123',
+            firstName: 'TC',
+            lastName: '201-2',
+            emailAddress: 'invalid',
+            password: 'secret',
         };
 
         chai.request(app)
@@ -47,10 +48,10 @@ describe('Tests for: UC-201', function () {
 
     it('TC-201-3: invalid password', (done) => {
         const user = {
-            firstName: 'John',
-            lastName: 'Doe',
-            emailAddress: 'johndoe2@example.com',
-            password: 'pass',
+            firstName: 'TC',
+            lastName: '201-3',
+            emailAddress: 'tc-201-3@example.com',
+            password: '123',
         };
 
         chai.request(app)
@@ -66,44 +67,41 @@ describe('Tests for: UC-201', function () {
 
     it('TC-201-4: user already exists', (done) => {
         const user = {
-            firstName: 'John',
-            lastName: 'Doe',
-            emailAddress: 'johndoe1@example.com',
-            password: 'password',
+            firstName: 'TC',
+            lastName: '201-4',
+            emailAddress: 'tc-201-4@example.com',
+            password: 'secret',
         };
 
-        const query1 = 'DELETE FROM user WHERE emailAddress = ?';
-        const values1 = [user.emailAddress];
+        const deleteQuery = 'DELETE FROM user WHERE emailAddress = ?';
+        const deleteValues = [user.emailAddress];
 
-        const query2 =
+        const insertQuery =
             'INSERT INTO user (firstName, lastName, emailAddress, password) VALUES (?, ?, ?, ?)';
-        const values2 = [user.firstName, user.lastName, user.emailAddress, user.password];
+        const insertValues = [user.firstName, user.lastName, user.emailAddress, user.password];
 
         pool.getConnection((err, conn) => {
             if (err) {
-                next({
-                    status: 500,
-                    message: 'Error connecting to database',
-                });
-                return;
+                logger.error('Error connecting to database');
+                done(err);
             } else if (conn) {
                 // Remove the test user if it already exists
-                conn.query(query1, values1, (err, results) => {
+                conn.query(deleteQuery, deleteValues, (err, results) => {
                     if (err) {
                         logger.error('Error executing query:', err.message);
                         done(err);
                     } else {
-                        logger.info('Deleted user with emailAddress:', user.emailAddress);
+                        logger.info('Deleted test user:', user);
 
                         // Add the test user to the database to simulate an existing user
-                        conn.query(query2, values2, (err, results) => {
+                        conn.query(insertQuery, insertValues, (err, results) => {
                             if (err) {
                                 logger.error('Error executing query:', err.message);
                                 done(err);
                             } else {
                                 // Make a request to create the user
                                 chai.request(app)
-                                    .post('api/user')
+                                    .post('/api/user')
                                     .send(user)
                                     .end((err, res) => {
                                         // Check that the response has the expected status code and message
@@ -140,39 +138,33 @@ describe('Tests for: UC-201', function () {
 
     it('TC-201-5: user successfully registered', (done) => {
         const user = {
-            firstName: 'John',
-            lastName: 'Doe',
-            emailAddress: 'johndoe1@example.com',
-            password: 'password123',
+            firstName: 'TC',
+            lastName: '201-5',
+            emailAddress: 'tc-201-5@example.com',
+            password: 'secret',
         };
 
-        const query = 'DELETE FROM user WHERE emailAddress = ?';
+        const deleteQuery = 'DELETE FROM user WHERE emailAddress = ?';
         const values = [user.emailAddress];
 
-        // First, remove the user if it already exists
         pool.getConnection((err, conn) => {
             if (err) {
-                logger.error('Error executing query:', err.message);
-                next({
-                    status: 500,
-                    message: 'Error connecting to database',
-                });
-                return;
+                logger.error('Error connecting to database');
+                done(err);
             } else {
-                conn.query(query, values, (err, results) => {
+                // Remove the test user if it already exists
+                conn.query(deleteQuery, values, (err, results) => {
                     if (err) {
                         logger.error('Error executing query:', err.message);
                         done(err);
                     } else {
-                        logger.info('Deleted user with emailAddress:', user.emailAddress);
+                        logger.info('Deleted test user:', user);
                         pool.releaseConnection(conn);
 
                         chai.request(app)
                             .post('/api/user')
                             .send(user)
                             .end((err, res) => {
-                                expect(err).to.be.null;
-                                expect(res).to.have.status(201);
                                 expect(res.body.status).to.equal(201);
                                 expect(res.body.message).to.equal(
                                     `User with id ${res.body.data.id} is added`
@@ -180,6 +172,7 @@ describe('Tests for: UC-201', function () {
                                 expect(res.body.data.firstName).to.equal(user.firstName);
                                 expect(res.body.data.lastName).to.equal(user.lastName);
                                 expect(res.body.data.emailAddress).to.equal(user.emailAddress);
+                                expect(res.body.data.password).to.equal(user.password);
 
                                 done();
                             });

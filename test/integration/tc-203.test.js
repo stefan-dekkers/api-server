@@ -19,11 +19,11 @@ describe('Tests for: UC-203', function () {
             });
     });
 
-    it('TC-203-1: invalid token', (done) => {
-        done();
-    });
+    // it('TC-203-1: invalid token', (done) => {
+    //     done();
+    // });
 
-    it('TC-203-2: user is logged in with valid token', (done) => {
-        done();
-    });
+    // it('TC-203-2: user is logged in with valid token', (done) => {
+    //     done();
+    // });
 });

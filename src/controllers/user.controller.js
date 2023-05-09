@@ -12,14 +12,18 @@ const userController = {
         logger.debug('user = ', user);
 
         try {
+            assert(user.firstName != null, 'firstName is missing');
             assert(typeof user.firstName === 'string', 'firstName must be a string');
+            assert(user.lastName != null, 'lastName is missing');
             assert(typeof user.lastName === 'string', 'lastName must be a string');
+            assert(user.emailAddress != null, 'emailAddress is missing');
             assert(typeof user.emailAddress === 'string', 'emailAddress must be a string');
+            assert(user.password != null, 'password is missing');
             assert(typeof user.password === 'string', 'password must be a string');
         } catch (err) {
             next({
                 status: 400,
-                message: err.message.toString(),
+                message: err.message,
             });
             return;
         }
@@ -73,7 +77,7 @@ const userController = {
                         }
                     }
                     const insertedId = results.insertId;
-                    logger.info('User with id', insertedId, 'is added');
+                    logger.info(`User with id ${insertedId} is added`);
                     res.status(201).json({
                         status: 201,
                         message: `User with id ${insertedId} is added`,
@@ -149,7 +153,7 @@ const userController = {
                         });
                     }
                     if (results) {
-                        logger.info('Found', results.length, 'results');
+                        logger.info(`Found ${results.length} results`);
                         res.status(200).json({
                             status: 200,
                             message: 'User getAll endpoint',
@@ -177,10 +181,11 @@ const userController = {
     getUserWithID: (req, res, next) => {
         logger.info('UC-204: getUserWithID');
 
-        const { userId } = req.params;
+        const userId = parseInt(req.params.userId);
+        logger.debug('userId = ', userId);
 
         try {
-            assert(typeof parseInt(userId) === 'number', 'userId must be a number');
+            assert(typeof userId === 'number', 'userId must be a number');
         } catch (err) {
             next({
                 status: 400,
@@ -189,8 +194,7 @@ const userController = {
             return;
         }
 
-        const query = 'SELECT * FROM user WHERE id = ?';
-        const values = [userId];
+        const userQuery = 'SELECT * FROM user WHERE id = ?';
 
         pool.getConnection(function (err, conn) {
             if (err) {
@@ -200,7 +204,7 @@ const userController = {
                 });
             }
             if (conn) {
-                conn.query(query, values, function (err, results) {
+                conn.query(userQuery, [userId], function (err, results) {
                     if (err) {
                         next({
                             status: 500,
@@ -233,21 +237,47 @@ const userController = {
     updateUser: (req, res, next) => {
         logger.info('UC-205: updateUser');
 
-        const { userId } = req.params;
-        const update = req.body;
+        const userId = parseInt(req.params.userId);
+        logger.debug('userId = ', userId);
+
+        const userUpdates = req.body;
 
         try {
-            assert(typeof parseInt(userId) === 'number', 'userId must be a number');
+            assert(userUpdates.emailAddress != null, 'emailAddress is missing');
+            assert(typeof userUpdates.emailAddress === 'string', 'emailAddress must be a string');
+            assert(userId != null, 'userId is missing');
+            assert(typeof userId === 'number', 'userId must be a number');
         } catch (err) {
             next({
                 status: 400,
-                message: err.message.toString(),
+                message: err.message,
             });
             return;
         }
 
-        const query = 'SELECT * FROM user WHERE id = ?';
-        const values = [userId];
+        // Email validation
+        const emailRegex = /\S+@\S+\.\S+/;
+        if (!emailRegex.test(userUpdates.emailAddress)) {
+            next({
+                status: 400,
+                message: 'Invalid email address (Example: user@example.com)',
+            });
+            return;
+        }
+
+        // Phone number validation
+        if (userUpdates.phoneNumber) {
+            const phoneRegex = /^(\d{2}\s){1}\d{8}$/;
+            if (!phoneRegex.test(userUpdates.phoneNumber)) {
+                next({
+                    status: 400,
+                    message: 'Invalid phone number (Example: 06 12345678)',
+                });
+                return;
+            }
+        }
+
+        const userQuery = 'SELECT * FROM user WHERE id = ?';
 
         pool.getConnection((err, conn) => {
             if (err) {
@@ -258,7 +288,7 @@ const userController = {
                 return;
             }
             if (conn) {
-                conn.query(query, values, (err, results) => {
+                conn.query(userQuery, [userId], (err, results) => {
                     if (err) {
                         next({
                             status: 500,
@@ -276,16 +306,25 @@ const userController = {
 
                     const user = results[0];
 
-                    const updatedUser = {
-                        ...user,
-                        ...update,
-                    };
+                    if (user.emailAddress !== userUpdates.emailAddress) {
+                        next({
+                            status: 400,
+                            message: 'Email address does not match with the given user id',
+                        });
+                        return;
+                    }
 
-                    const fieldsToUpdate = Object.keys(update).map((key) => `${key} = ?`);
-                    const query = `UPDATE user SET ${fieldsToUpdate} WHERE id = ?`;
-                    const values = [...Object.values(update), userId];
+                    let updatedUser = { ...user };
 
-                    conn.query(query, values, (err, results) => {
+                    // Update the user object with the new values
+                    for (const key in userUpdates) {
+                        if (key in user) {
+                            updatedUser[key] = userUpdates[key];
+                        }
+                    }
+
+                    const updateQuery = 'UPDATE user SET ? WHERE id = ?';
+                    conn.query(updateQuery, [updatedUser, userId], (err, results) => {
                         if (err) {
                             next({
                                 status: 500,
@@ -293,7 +332,6 @@ const userController = {
                             });
                             return;
                         }
-
                         logger.info(`User with id ${userId} has been updated`);
                         res.status(200).json({
                             status: 200,
@@ -309,37 +347,47 @@ const userController = {
     },
 
     // UC-206
-    deleteUser: (req, res) => {
+    deleteUser: (req, res, next) => {
         logger.info('UC-206: deleteUser');
 
-        const { userId } = req.params;
+        const userId = parseInt(req.params.userId);
+        logger.debug('userId = ', userId);
 
-        try {
-            assert(typeof parseInt(userId) === 'number', 'userId must be a number');
-        } catch (err) {
-            next({
-                status: 400,
-                message: err.message,
-            });
-            return;
-        }
+        const deleteQuery = 'DELETE FROM user WHERE id = ?';
 
-        const userIndex = database['users'].findIndex((u) => u.id === parseInt(userId));
-
-        if (userIndex === -1) {
-            next({
-                status: 404,
-                message: `User with id ${userId} not found`,
-            });
-            return;
-        }
-
-        database['users'].splice(userIndex, 1);
-
-        res.status(200).json({
-            status: 200,
-            message: `User with id ${userId} deleted`,
-            data: {},
+        pool.getConnection(function (err, conn) {
+            if (err) {
+                next({
+                    status: 500,
+                    message: 'Error connecting to database',
+                });
+                return;
+            }
+            if (conn) {
+                conn.query(deleteQuery, [userId], function (err, results) {
+                    if (err) {
+                        next({
+                            status: 500,
+                            message: 'Error executing query',
+                        });
+                        return;
+                    }
+                    if (results.affectedRows === 0) {
+                        next({
+                            status: 404,
+                            message: 'User not found',
+                        });
+                        return;
+                    }
+                    logger.info(`User with id ${userId} is deleted`);
+                    res.status(200).json({
+                        status: 200,
+                        message: `User with id ${userId} is deleted`,
+                        data: {},
+                    });
+                });
+                pool.releaseConnection(conn);
+            }
         });
     },
 };

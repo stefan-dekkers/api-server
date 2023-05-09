@@ -6,9 +6,9 @@ chai.use(chaiHttp);
 const expect = chai.expect;
 
 describe('Tests for: UC-204', function () {
-    it('TC-204-1: invalid token', (done) => {
-        done();
-    });
+    // it('TC-204-1: invalid token', (done) => {
+    //     done();
+    // });
 
     it('TC-204-2: user id does not exist', (done) => {
         const userId = -1;
