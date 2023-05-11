@@ -1,4 +1,4 @@
-// API server: by Stefan Dekkers
+// API server by Stefan Dekkers
 
 const express = require('express');
 const logger = require('./src/util/utils').logger;
