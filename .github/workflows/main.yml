@@ -41,7 +41,7 @@ jobs:
 
             - name: npm test
               run: |
-                  npm test -- --no-timeouts --DB_PASSWORD {{env.MYSQL_ROOT_PASSWORD}} --DB_USER root --DB_NAME ${{env.DB_DATABASE}}
+                  npm test -- --DB_PASSWORD {{env.MYSQL_ROOT_PASSWORD}} --DB_USER root --DB_NAME ${{env.DB_DATABASE}}
 
     Railway-deploy:
         needs: integrationtests
