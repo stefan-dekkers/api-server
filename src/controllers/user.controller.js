@@ -2,11 +2,12 @@ const assert = require('assert');
 const database = require('../util/inmem-db');
 const logger = require('../util/utils').logger;
 const pool = require('../util/mysql-db');
+// const jwt = require('jsonwebtoken');
 
 const userController = {
-    // UC-201
+    // UC-201: Register as new user
     createUser: (req, res, next) => {
-        logger.info('UC-201: createUser');
+        logger.info('UC-201: Register as new user');
 
         const user = req.body;
         logger.debug('user = ', user);
@@ -53,14 +54,15 @@ const userController = {
 
         pool.getConnection(function (err, conn) {
             if (err) {
+                logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: 'Error connecting to database',
+                    message: err.code,
                 });
                 return;
             }
             if (conn) {
-                conn.query(query, values, function (err, results) {
+                conn.query(query, values, function (err, results, fields) {
                     if (err) {
                         if (err.code === 'ER_DUP_ENTRY') {
                             next({
@@ -71,27 +73,40 @@ const userController = {
                         } else {
                             next({
                                 status: 500,
-                                message: 'Error executing query',
+                                message: err.code,
                             });
                             return;
                         }
                     }
-                    const insertedId = results.insertId;
-                    logger.info(`User with id ${insertedId} is added`);
-                    res.status(201).json({
-                        status: 201,
-                        message: `User with id ${insertedId} is added`,
-                        data: { id: insertedId, ...user },
+                    const insertId = results.insertId;
+                    logger.info(`User with id ${insertId} is added`);
+
+                    const selectQuery = 'SELECT * FROM user WHERE id = ?';
+                    const selectValues = [insertId];
+                    conn.query(selectQuery, selectValues, function (err, results, fields) {
+                        if (err) {
+                            next({
+                                status: 500,
+                                message: err.code,
+                            });
+                            return;
+                        }
+                        const user = results[0];
+                        res.status(201).json({
+                            status: 201,
+                            message: `User with id ${insertId} is added`,
+                            data: user,
+                        });
                     });
+                    pool.releaseConnection(conn);
                 });
-                pool.releaseConnection(conn);
             }
         });
     },
 
-    // UC-202
+    // UC-202: Get users overview
     getAllUsers: (req, res, next) => {
-        logger.info('UC-202: getAllUsers');
+        logger.info('UC-202: Get users overview');
 
         const isActive = req.query.isActive;
         const firstName = req.query.firstName;
@@ -139,10 +154,12 @@ const userController = {
 
         pool.getConnection(function (err, conn) {
             if (err) {
+                logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: 'Error connecting to database',
+                    message: err.code,
                 });
+                return;
             }
             if (conn) {
                 conn.query(query, function (err, results, fields) {
@@ -151,6 +168,7 @@ const userController = {
                             status: 409,
                             message: err.message,
                         });
+                        return;
                     }
                     if (results) {
                         logger.info(`Found ${results.length} results`);
@@ -166,20 +184,51 @@ const userController = {
         });
     },
 
-    // UC-203
-    getProfile: (req, res) => {
-        logger.info('UC-203: getProfile');
+    // UC-203: Get user profile
+    getProfile: (req, res, next) => {
+        logger.info('UC-203: Get user profile');
 
-        res.status(501).json({
-            status: 501,
-            message: 'This functionality has not yet been realized.',
-            data: {},
+        req.userId = 1;
+        logger.trace('Get user profile for user', req.userId);
+
+        let query = 'SELECT * FROM user WHERE id=?';
+
+        pool.getConnection(function (err, conn) {
+            if (err) {
+                logger.error(err.code, err.syscall, err.address, err.port);
+                next({
+                    status: 500,
+                    message: err.code,
+                });
+                return;
+            }
+            if (conn) {
+                conn.query(query, [req.userId], (err, results, fields) => {
+                    if (err) {
+                        logger.error(err.message);
+                        next({
+                            status: 409,
+                            message: err.message,
+                        });
+                        return;
+                    }
+                    if (results) {
+                        logger.trace('Found', results.length, 'results');
+                        res.status(200).json({
+                            status: 200,
+                            message: 'Get user profile',
+                            data: results[0],
+                        });
+                    }
+                });
+                pool.releaseConnection(conn);
+            }
         });
     },
 
-    // UC-204
+    // UC-204: Get user with id
     getUserWithID: (req, res, next) => {
-        logger.info('UC-204: getUserWithID');
+        logger.info('UC-204: Get user with id');
 
         const userId = parseInt(req.params.userId);
         logger.debug('userId = ', userId);
@@ -198,17 +247,19 @@ const userController = {
 
         pool.getConnection(function (err, conn) {
             if (err) {
+                logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: 'Error connecting to database',
+                    message: err.code,
                 });
+                return;
             }
             if (conn) {
-                conn.query(userQuery, [userId], function (err, results) {
+                conn.query(userQuery, [userId], function (err, results, fields) {
                     if (err) {
                         next({
                             status: 500,
-                            message: 'Error executing query',
+                            message: err.code,
                         });
                         return;
                     }
@@ -233,9 +284,9 @@ const userController = {
         });
     },
 
-    // UC-205
+    // UC-205: Update user
     updateUser: (req, res, next) => {
-        logger.info('UC-205: updateUser');
+        logger.info('UC-205: Update user');
 
         const userId = parseInt(req.params.userId);
         logger.debug('userId = ', userId);
@@ -281,18 +332,19 @@ const userController = {
 
         pool.getConnection((err, conn) => {
             if (err) {
+                logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: 'Error connecting to database',
+                    message: err.code,
                 });
                 return;
             }
             if (conn) {
-                conn.query(userQuery, [userId], (err, results) => {
+                conn.query(userQuery, [userId], (err, results, fields) => {
                     if (err) {
                         next({
                             status: 500,
-                            message: 'Error executing query',
+                            message: err.code,
                         });
                         return;
                     }
@@ -324,11 +376,11 @@ const userController = {
                     }
 
                     const updateQuery = 'UPDATE user SET ? WHERE id = ?';
-                    conn.query(updateQuery, [updatedUser, userId], (err, results) => {
+                    conn.query(updateQuery, [updatedUser, userId], (err, results, fields) => {
                         if (err) {
                             next({
                                 status: 500,
-                                message: 'Error executing query',
+                                message: err.code,
                             });
                             return;
                         }
@@ -346,9 +398,9 @@ const userController = {
         });
     },
 
-    // UC-206
+    // UC-206: Delete user
     deleteUser: (req, res, next) => {
-        logger.info('UC-206: deleteUser');
+        logger.info('UC-206: Delete user');
 
         const userId = parseInt(req.params.userId);
         logger.debug('userId = ', userId);
@@ -357,18 +409,19 @@ const userController = {
 
         pool.getConnection(function (err, conn) {
             if (err) {
+                logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: 'Error connecting to database',
+                    message: err.code,
                 });
                 return;
             }
             if (conn) {
-                conn.query(deleteQuery, [userId], function (err, results) {
+                conn.query(deleteQuery, [userId], function (err, results, fields) {
                     if (err) {
                         next({
                             status: 500,
-                            message: 'Error executing query',
+                            message: err.code,
                         });
                         return;
                     }
