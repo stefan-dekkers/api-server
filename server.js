@@ -5,7 +5,7 @@ const logger = require('./src/util/utils').logger;
 const userRoutes = require('./src/routes/user.routes');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
