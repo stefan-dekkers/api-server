@@ -25,11 +25,11 @@ const CLEAR_DB = CLEAR_MEAL_TABLE + CLEAR_PARTICIPANTS_TABLE + CLEAR_USERS_TABLE
 // Insert user query
 const INSERT_USER =
     'INSERT INTO user (id, firstName, lastName, emailAddress, password, street, city ) VALUES' +
-    '(1, "John", "Doe", "johndoe@example.com", "secret", "street", "city"),' +
-    '(2, "Alex", "Johnson", "alexJohnson@example.com", "secret", "street", "city"),' +
-    '(3, "Emily", "Garcia", "emilygarcia@example.com", "secret", "street", "city"),' +
-    '(4, "Max", "Mitchell", "maxmitchell@example.com", "secret", "street", "city"),' +
-    '(5, "Lily", "Brown", "lilybrown@example.com", "secret", "street", "city");';
+    '(1, "John", "Doe", "J.doe@example.com", "Password1", "street", "city"),' +
+    '(2, "Alex", "Johnson", "A.johnson@example.com", "Password1", "street", "city"),' +
+    '(3, "Emily", "Garcia", "E.garcia@example.com", "Password1", "street", "city"),' +
+    '(4, "Max", "Mitchell", "M.mitchell@example.com", "Password1", "street", "city"),' +
+    '(5, "Lily", "Brown", "L.brown@example.com", "Password1", "street", "city");';
 
 // Insert meal query
 const INSERT_MEALS =
@@ -73,7 +73,7 @@ describe('Users API', () => {
             const user = {
                 firstName: 'TC',
                 lastName: '201-1',
-                password: 'secret',
+                password: 'Password1',
             };
 
             chai.request(app)
@@ -91,8 +91,8 @@ describe('Users API', () => {
             const user = {
                 firstName: 'TC',
                 lastName: '201-2',
-                emailAddress: 'invalid',
-                password: 'secret',
+                emailAddress: 'invalid@email',
+                password: 'Password1',
             };
 
             chai.request(app)
@@ -100,7 +100,9 @@ describe('Users API', () => {
                 .send(user)
                 .end((err, res) => {
                     expect(res.body.status).to.equal(400);
-                    expect(res.body.message).to.equal('Invalid email address');
+                    expect(res.body.message).to.equal(
+                        `${user.emailAddress} is an invalid emailAddress`
+                    );
                     expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
@@ -110,7 +112,7 @@ describe('Users API', () => {
             const user = {
                 firstName: 'TC',
                 lastName: '201-3',
-                emailAddress: 'tc-201-3@example.com',
+                emailAddress: 'a.TC@example.com',
                 password: '123',
             };
 
@@ -119,7 +121,7 @@ describe('Users API', () => {
                 .send(user)
                 .end((err, res) => {
                     expect(res.body.status).to.equal(400);
-                    expect(res.body.message).to.equal('Password must have at least 6 characters');
+                    expect(res.body.message).to.equal(`${user.password} is an invalid password`);
                     expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
@@ -129,8 +131,8 @@ describe('Users API', () => {
             const user = {
                 firstName: 'John',
                 lastName: 'Doe',
-                emailAddress: 'johndoe@example.com',
-                password: 'secret',
+                emailAddress: 'J.doe@example.com',
+                password: 'Password1',
             };
 
             chai.request(app)
@@ -138,7 +140,7 @@ describe('Users API', () => {
                 .send(user)
                 .end((err, res) => {
                     expect(res.body.status).to.equal(403);
-                    // expect(res.body.message).to.equal('Email address already taken');
+                    expect(res.body.message).to.equal('Email address already taken');
                     done();
                 });
         });
@@ -147,8 +149,8 @@ describe('Users API', () => {
             const user = {
                 firstName: 'TC',
                 lastName: '201-5',
-                emailAddress: 'tc-201-5@example.com',
-                password: 'secret',
+                emailAddress: 'a.TC@example.com',
+                password: 'Password1',
             };
 
             chai.request(app)
@@ -156,7 +158,7 @@ describe('Users API', () => {
                 .send(user)
                 .end((err, res) => {
                     expect(res.body.status).to.equal(201);
-                    // expect(res.body.message).to.equal(`User with id ${res.body.data.id} is added`);
+                    expect(res.body.message).to.equal(`User with id ${res.body.data.id} is added`);
 
                     const query = `SELECT * FROM user WHERE emailAddress = '${user.emailAddress}'`;
                     dbconnection.getConnection(function (err, conn) {
@@ -350,25 +352,36 @@ describe('Users API', () => {
         });
 
         it('TC-205-3: invalid phone number', (done) => {
+            const user = {
+                emailAddress: 'b.TC@example.com',
+                phoneNumber: '123',
+            };
+
             chai.request(app)
                 .put('/api/user/1')
-                .send({ emailAddress: 'user@example.com', phoneNumber: 'invalid' })
+                .send(user)
                 .end((err, res) => {
                     expect(res.body.status).to.equal(400);
                     expect(res.body.message).to.equal(
-                        'Invalid phone number (Example: 06 12345678)'
+                        `${user.phoneNumber} is an invalid phoneNumber`
                     );
                     done();
                 });
         });
 
         it('TC-205-4: user does not exist', (done) => {
+            const userId = -1;
+            const user = {
+                emailAddress: 'b.TC@example.com',
+                phoneNumber: '06 12345678',
+            };
+
             chai.request(app)
-                .put('/api/user/999')
-                .send({ emailAddress: 'user@example.com', phoneNumber: '06 12345678' })
+                .put(`/api/user/${userId}`)
+                .send(user)
                 .end((err, res) => {
                     expect(res.body.status).to.equal(404);
-                    expect(res.body.message).to.equal('User with id 999 not found');
+                    expect(res.body.message).to.equal(`User with id ${userId} not found`);
                     done();
                 });
         });
@@ -378,14 +391,15 @@ describe('Users API', () => {
         });
 
         it('TC-205-6: user updated successfully', (done) => {
+            const userId = 1;
             const user = {
                 firstName: 'NewFirstName',
                 lastName: 'NewLastName',
-                emailAddress: 'johndoe@example.com',
+                emailAddress: 'J.doe@example.com',
             };
 
             chai.request(app)
-                .put('/api/user/1')
+                .put(`/api/user/${userId}`)
                 .send({
                     emailAddress: user.emailAddress,
                     firstName: 'NewFirstName',
@@ -393,7 +407,7 @@ describe('Users API', () => {
                 })
                 .end((err, res) => {
                     expect(res.body.status).to.equal(200);
-                    expect(res.body.message).to.equal('User with id 1 has been updated');
+                    expect(res.body.message).to.equal(`User with id ${userId} has been updated`);
                     expect(res.body.data.firstName).to.equal('NewFirstName');
                     expect(res.body.data.lastName).to.equal('NewLastName');
                     done();

@@ -1,5 +1,4 @@
 const assert = require('assert');
-const database = require('../util/inmem-db');
 const logger = require('../util/utils').logger;
 const pool = require('../util/mysql-db');
 // const jwt = require('jsonwebtoken');
@@ -19,31 +18,14 @@ const userController = {
             assert(typeof user.lastName === 'string', 'lastName must be a string');
             assert(user.emailAddress != null, 'emailAddress is missing');
             assert(typeof user.emailAddress === 'string', 'emailAddress must be a string');
+            emailValidation(user.emailAddress);
             assert(user.password != null, 'password is missing');
             assert(typeof user.password === 'string', 'password must be a string');
+            passwordValidation(user.password);
         } catch (err) {
             next({
                 status: 400,
                 message: err.message,
-            });
-            return;
-        }
-
-        // Email validation
-        const emailRegex = /\S+@\S+\.\S+/;
-        if (!emailRegex.test(user.emailAddress)) {
-            next({
-                status: 400,
-                message: 'Invalid email address',
-            });
-            return;
-        }
-
-        // Password validation
-        if (user.password.length < 6) {
-            next({
-                status: 400,
-                message: 'Password must have at least 6 characters',
             });
             return;
         }
@@ -296,36 +278,18 @@ const userController = {
         try {
             assert(userUpdates.emailAddress != null, 'emailAddress is missing');
             assert(typeof userUpdates.emailAddress === 'string', 'emailAddress must be a string');
+            emailValidation(userUpdates.emailAddress);
             assert(userId != null, 'userId is missing');
             assert(typeof userId === 'number', 'userId must be a number');
+            if (userUpdates.phoneNumber) {
+                phoneNumberValidation(userUpdates.phoneNumber);
+            }
         } catch (err) {
             next({
                 status: 400,
                 message: err.message,
             });
             return;
-        }
-
-        // Email validation
-        const emailRegex = /\S+@\S+\.\S+/;
-        if (!emailRegex.test(userUpdates.emailAddress)) {
-            next({
-                status: 400,
-                message: 'Invalid email address (Example: user@example.com)',
-            });
-            return;
-        }
-
-        // Phone number validation
-        if (userUpdates.phoneNumber) {
-            const phoneRegex = /^(\d{2}\s){1}\d{8}$/;
-            if (!phoneRegex.test(userUpdates.phoneNumber)) {
-                next({
-                    status: 400,
-                    message: 'Invalid phone number (Example: 06 12345678)',
-                });
-                return;
-            }
         }
 
         const userQuery = 'SELECT * FROM user WHERE id = ?';
@@ -444,5 +408,29 @@ const userController = {
         });
     },
 };
+
+function emailValidation(emailAddress) {
+    const regEx = /^[a-zA-Z]?\.[a-zA-Z]{2,}@([a-zA-Z]{2,}\.)+[a-zA-Z]{2,3}$/gm;
+    const checkEmail = emailAddress.match(regEx);
+    if (checkEmail == null) {
+        throw new Error(`${emailAddress} is an invalid emailAddress`);
+    }
+}
+
+function passwordValidation(password) {
+    const regEx = /^(?=.*\d)(?=.*[A-Z]).{8,}$/gm;
+    const checkPassword = password.match(regEx);
+    if (checkPassword == null) {
+        throw new Error(`${password} is an invalid password`);
+    }
+}
+
+function phoneNumberValidation(phoneNumber) {
+    const regEx = /^06[- ]?\d{8}$/gm;
+    const checkPhoneNumber = phoneNumber.match(regEx);
+    if (checkPhoneNumber == null) {
+        throw new Error(`${phoneNumber} is an invalid phoneNumber`);
+    }
+}
 
 module.exports = userController;
