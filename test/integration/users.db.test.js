@@ -4,14 +4,14 @@ const chai = require('chai');
 const chaiHttp = require('chai-http');
 const app = require('../../server');
 
-const logger = require('../../src/util/utils').logger;
+const { logger, jwtSecretKey } = require('../../src/util/utils');
 const dbconnection = require('../../src/util/mysql-db');
 
 const assert = require('assert');
 const expect = chai.expect;
 
-// const jwt = require('jsonwebtoken');
-// const { jwtSecretKey, logger } = require('../../src/util/utils');
+const jwt = require('jsonwebtoken');
+
 require('tracer').setLevel('trace');
 
 chai.use(chaiHttp);
@@ -31,26 +31,9 @@ const INSERT_USER =
     '(4, "Max", "Mitchell", "M.mitchell@example.com", "Password1", "street", "city"),' +
     '(5, "Lily", "Brown", "L.brown@example.com", "Password1", "street", "city");';
 
-// Insert meal query
-const INSERT_MEALS =
-    'INSERT INTO meal (id, name, description, imageUrl, dateTime, maxAmountOfParticipants, price, cookId) VALUES' +
-    "(1, 'Meal A', 'description', 'image url', NOW(), 5, 6.50, 1)," +
-    "(2, 'Meal B', 'description', 'image url', NOW(), 5, 6.50, 1)," +
-    "(3, 'Meal C', 'description', 'image url', NOW(), 5, 6.50, 1)," +
-    "(4, 'Meal D', 'description', 'image url', NOW(), 5, 6.50, 1)," +
-    "(5, 'Meal E', 'description', 'image url', NOW(), 5, 6.50, 1);";
-
 describe('Users API', () => {
-    before((done) => {
-        logger.trace('before: hier zorg je eventueel dat de precondities correct zijn');
-        logger.trace('before done');
-        done();
-    });
-
-    describe('UC-201: Register as new user', () => {
+    describe('UC-101: Login', () => {
         beforeEach((done) => {
-            logger.trace('beforeEach called');
-
             // Reset test database
             dbconnection.getConnection(function (err, conn) {
                 if (err) {
@@ -62,7 +45,83 @@ describe('Users API', () => {
                         done(err);
                         throw err;
                     }
-                    logger.trace('beforeEach done');
+                    dbconnection.releaseConnection(conn);
+                    done();
+                });
+            });
+        });
+
+        it('TC-101-1: required field is missing', (done) => {
+            chai.request(app)
+                .post('/api/login')
+                .send({})
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(400);
+                    expect(res.body.message).to.equal('emailAddress is missing');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
+        });
+
+        it.skip('TC-101-2: invalid password', (done) => {
+            chai.request(app)
+                .post('/api/login')
+                .send({ emailAddress: 'J.doe@example.com', password: 'invalid' })
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(400);
+                    expect(res.body.message).to.equal('Not authorized');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
+        });
+
+        it.skip('TC-101-3: user does not exist', (done) => {
+            chai.request(app)
+                .post('/api/login')
+                .send({ emailAddress: 'nonexistent@example.com', password: 'Password1' })
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(404);
+                    expect(res.body.message).to.equal('User does not exist');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
+        });
+
+        it.skip('TC-101-4: user successfully logged in', (done) => {
+            chai.request(app)
+                .post('/api/login')
+                .send({ emailAddress: 'J.doe@example.com', password: 'Password1' })
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(200);
+                    expect(res.body.message).to.equal('User logged in');
+                    expect(res.body.data)
+                        .to.be.an('object')
+                        .that.has.all.keys('id', 'emailAddress', 'password', 'token');
+                    expect(res.body.data.id).to.equal(user.id);
+                    expect(res.body.data.emailAddress).to.equal(user.emailAddress);
+                    expect(res.body.data.password).to.equal(user.password);
+                    expect(res.body.data.token).to.be.a('string');
+                });
+        });
+    });
+
+    describe('UC-201: Register as new user', () => {
+        beforeEach((done) => {
+            // Reset test database
+            dbconnection.getConnection(function (err, conn) {
+                if (err) {
+                    done(err);
+                    throw err;
+                }
+                conn.query(CLEAR_DB + INSERT_USER, function (err, results, fields) {
+                    if (err) {
+                        done(err);
+                        throw err;
+                    }
                     dbconnection.releaseConnection(conn);
                     done();
                 });
@@ -80,7 +139,9 @@ describe('Users API', () => {
                 .post('/api/user')
                 .send(user)
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(400);
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.message).to.equal('emailAddress is missing');
                     expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
@@ -99,10 +160,9 @@ describe('Users API', () => {
                 .post('/api/user')
                 .send(user)
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(400);
-                    expect(res.body.message).to.equal(
-                        `${user.emailAddress} is an invalid emailAddress`
-                    );
+                    expect(res.body.message).to.equal(`${user.emailAddress} is an invalid emailAddress`);
                     expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
@@ -112,7 +172,7 @@ describe('Users API', () => {
             const user = {
                 firstName: 'TC',
                 lastName: '201-3',
-                emailAddress: 'a.TC@example.com',
+                emailAddress: 'A.tc@example.com',
                 password: '123',
             };
 
@@ -120,6 +180,7 @@ describe('Users API', () => {
                 .post('/api/user')
                 .send(user)
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(400);
                     expect(res.body.message).to.equal(`${user.password} is an invalid password`);
                     expect(res.body.data).to.be.an('object').that.is.empty;
@@ -133,14 +194,19 @@ describe('Users API', () => {
                 lastName: 'Doe',
                 emailAddress: 'J.doe@example.com',
                 password: 'Password1',
+                phoneNumber: '06-12345678',
+                street: 'street',
+                city: 'city',
             };
 
             chai.request(app)
                 .post('/api/user')
                 .send(user)
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(403);
                     expect(res.body.message).to.equal('Email address already taken');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
         });
@@ -149,14 +215,18 @@ describe('Users API', () => {
             const user = {
                 firstName: 'TC',
                 lastName: '201-5',
-                emailAddress: 'a.TC@example.com',
+                emailAddress: 'A.tc@example.com',
                 password: 'Password1',
+                phoneNumber: '06-12345678',
+                street: 'street',
+                city: 'city',
             };
 
             chai.request(app)
                 .post('/api/user')
                 .send(user)
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(201);
                     expect(res.body.message).to.equal(`User with id ${res.body.data.id} is added`);
 
@@ -178,10 +248,9 @@ describe('Users API', () => {
                                 expect(fetchedUser.lastName).to.equal(user.lastName);
                                 expect(fetchedUser.emailAddress).to.equal(user.emailAddress);
                                 expect(fetchedUser.password).to.equal(user.password);
-                                expect(fetchedUser.phoneNumber).to.equal(res.body.data.phoneNumber);
-                                expect(fetchedUser.roles).to.equal(res.body.data.roles);
-                                expect(fetchedUser.street).to.equal(res.body.data.street);
-                                expect(fetchedUser.city).to.equal(res.body.data.city);
+                                expect(fetchedUser.phoneNumber).to.equal(user.phoneNumber);
+                                expect(fetchedUser.street).to.equal(user.street);
+                                expect(fetchedUser.city).to.equal(user.city);
                                 dbconnection.releaseConnection(conn);
                                 done();
                             }
@@ -196,23 +265,32 @@ describe('Users API', () => {
             chai.request(app)
                 .get('/api/user')
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(200);
-                    expect(res.body.message).to.equal('User getAll endpoint');
+                    expect(res.body.message).to.equal(`Retrieved ${res.body.data.length} users successfully`);
                     expect(res.body.data).that.is.an('array').with.length.gte(2);
                     done();
                 });
         });
 
-        it.skip('TC-202-2: show users with search term on non-existent fields', (done) => {
-            done();
+        it('TC-202-2: show users with search term on non-existent fields', (done) => {
+            chai.request(app)
+                .get('/api/user?Test=1')
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(200);
+                    expect(res.body.message).to.equal(`Retrieved ${res.body.data.length} users successfully`);
+                    done();
+                });
         });
 
         it('TC-202-3: show users with search term on field isActive = false', (done) => {
             chai.request(app)
                 .get('/api/user?isActive=false')
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(200);
-                    expect(res.body.message).to.equal('User getAll endpoint');
+                    expect(res.body.message).to.equal(`Retrieved ${res.body.data.length} users successfully`);
                     expect(res.body.data).that.is.an('array');
                     res.body.data.forEach((user) => {
                         expect(user.isActive).to.be.equal(0);
@@ -225,8 +303,9 @@ describe('Users API', () => {
             chai.request(app)
                 .get('/api/user?isActive=true')
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(200);
-                    expect(res.body.message).to.equal('User getAll endpoint');
+                    expect(res.body.message).to.equal(`Retrieved ${res.body.data.length} users successfully`);
                     expect(res.body.data).that.is.an('array');
                     res.body.data.forEach((user) => {
                         expect(user.isActive).to.be.equal(1);
@@ -235,64 +314,77 @@ describe('Users API', () => {
                 });
         });
 
-        it.skip('TC-202-5: show users with search terms on existing fields (filter max on 2 fields)', (done) => {
-            done();
+        it('TC-202-5: show users with search terms on existing fields', (done) => {
+            chai.request(app)
+                .get('/api/user?firstName=John&lastName=Doe')
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(200);
+                    expect(res.body.message).to.equal(`Retrieved ${res.body.data.length} users successfully`);
+                    expect(res.body.data).that.is.an('array');
+                    res.body.data.forEach((user) => {
+                        expect(user.firstName).to.be.equal('John');
+                        expect(user.lastName).to.be.equal('Doe');
+                    });
+                    done();
+                });
         });
     });
 
     describe('UC-203: Get user profile', function () {
-        it.skip('TC-203-1: invalid token', (done) => {
-            chai.request(server)
+        it('TC-203-1: invalid token', (done) => {
+            chai.request(app)
                 .get('/api/user/profile')
-                .set('authorization', 'Bearer hier-staat-een-ongeldig-token')
+                .set('authorization', 'Bearer invalid-token')
                 .end((err, res) => {
-                    assert.ifError(err);
-                    res.should.have.status(401);
-                    res.should.be.an('object');
-
-                    res.body.should.be.an('object').that.has.all.keys('code', 'message', 'data');
-                    let { code, message, data } = res.body;
-                    code.should.be.an('number');
-                    message.should.be.a('string').equal('Not authorized');
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(401);
+                    expect(res.body.message).to.equal('Invalid token!');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
         });
 
-        it.skip('TC-203-2: user is logged in with valid token', (done) => {
-            // Gebruiker met id = 1 is toegevoegd in de testdatabase. We zouden nu
-            // in deze testcase succesvol het profiel van die gebruiker moeten vinden
-            // als we een valide token meesturen.
-            chai.request(server)
+        it('TC-203-2: user is logged in with valid token', (done) => {
+            chai.request(app)
                 .get('/api/user/profile')
                 .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                 .end((err, res) => {
-                    assert.ifError(err);
-                    res.should.have.status(200);
-                    res.should.be.an('object');
-
-                    res.body.should.be.an('object').that.has.all.keys('code', 'message', 'data');
-                    let { code, message, data } = res.body;
-                    code.should.be.an('number');
-                    message.should.be.a('string').that.contains('Get User profile');
-                    data.should.be.an('object');
-                    data.id.should.equal(1);
-                    data.firstName.should.equal('first');
-                    // Zelf de overige validaties aanvullen!
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(200);
+                    expect(res.body.message).to.equal(`User profile with id 1`);
+                    expect(res.body.data.firstName).to.be.equal('John');
+                    expect(res.body.data.lastName).to.be.equal('Doe');
+                    expect(res.body.data.emailAddress).to.be.equal('J.doe@example.com');
+                    expect(res.body.data.password).to.be.equal('Password1');
+                    expect(res.body.data.street).to.be.equal('street');
+                    expect(res.body.data.city).to.be.equal('city');
                     done();
                 });
         });
     });
 
     describe('UC-204: Get user with id', function () {
-        it.skip('TC-204-1: invalid token', (done) => {
-            done();
+        it('TC-204-1: invalid token', (done) => {
+            chai.request(app)
+                .get('/api/user/login')
+                .set('authorization', 'Bearer invalid-token')
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(401);
+                    expect(res.body.message).to.equal('Invalid token!');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
         });
 
         it('TC-204-2: user id does not exist', (done) => {
             const userId = -1;
             chai.request(app)
                 .get(`/api/user/${userId}`)
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(404);
                     expect(res.body.message).to.equal(`User with id ${userId} not found`);
                     expect(res.body.data).to.be.an('object').that.is.empty;
@@ -304,7 +396,9 @@ describe('Users API', () => {
             const userId = 1;
             chai.request(app)
                 .get(`/api/user/${userId}`)
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(200);
                     expect(res.body.message).to.equal(`User with id ${userId} retrieved`);
                     expect(res.body.data).to.be.an('object').that.is.not.empty;
@@ -339,16 +433,35 @@ describe('Users API', () => {
         it('TC-205-1: required field emailAddress is missing', (done) => {
             chai.request(app)
                 .put('/api/user/1')
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                 .send({ phoneNumber: '06 12345678' })
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(400);
                     expect(res.body.message).to.equal('emailAddress is missing');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
         });
 
-        it.skip('TC-205-2: user is not the owner of the data', (done) => {
-            done();
+        it('TC-205-2: user is not the owner of the data', (done) => {
+            const user = {
+                firstName: 'NewFirstName',
+                lastName: 'NewLastName',
+                emailAddress: 'J.doe@example.com',
+            };
+
+            chai.request(app)
+                .put(`/api/user/2`)
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
+                .send({ user })
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(403);
+                    expect(res.body.message).to.equal('User is not the owner of the data');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
         });
 
         it('TC-205-3: invalid phone number', (done) => {
@@ -359,39 +472,37 @@ describe('Users API', () => {
 
             chai.request(app)
                 .put('/api/user/1')
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                 .send(user)
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(400);
-                    expect(res.body.message).to.equal(
-                        `${user.phoneNumber} is an invalid phoneNumber`
-                    );
+                    expect(res.body.message).to.equal(`${user.phoneNumber} is an invalid phoneNumber`);
+                    expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
         });
 
         it('TC-205-4: user does not exist', (done) => {
-            const userId = -1;
             const user = {
                 emailAddress: 'b.TC@example.com',
                 phoneNumber: '06 12345678',
             };
 
             chai.request(app)
-                .put(`/api/user/${userId}`)
+                .put('/api/user/-1')
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                 .send(user)
                 .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
                     expect(res.body.status).to.equal(404);
-                    expect(res.body.message).to.equal(`User with id ${userId} not found`);
+                    expect(res.body.message).to.equal(`User with id -1 not found`);
+                    expect(res.body.data).to.be.an('object').that.is.empty;
                     done();
                 });
         });
 
-        it.skip('TC-205-5: not logged in', (done) => {
-            done();
-        });
-
-        it('TC-205-6: user updated successfully', (done) => {
-            const userId = 1;
+        it('TC-205-5: not logged in', (done) => {
             const user = {
                 firstName: 'NewFirstName',
                 lastName: 'NewLastName',
@@ -399,15 +510,26 @@ describe('Users API', () => {
             };
 
             chai.request(app)
-                .put(`/api/user/${userId}`)
-                .send({
-                    emailAddress: user.emailAddress,
-                    firstName: 'NewFirstName',
-                    lastName: 'NewLastName',
-                })
+                .put('/api/user/1')
+                .send(user)
                 .end((err, res) => {
-                    expect(res.body.status).to.equal(200);
-                    expect(res.body.message).to.equal(`User with id ${userId} has been updated`);
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(401);
+                    expect(res.body.message).to.equal('Authorization header missing!');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
+        });
+
+        it('TC-205-6: user updated successfully', (done) => {
+            chai.request(app)
+                .put('/api/user/1')
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
+                .send({ emailAddress: 'J.doe@example.com', firstName: 'NewFirstName', lastName: 'NewLastName' })
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(201);
+                    expect(res.body.message).to.equal(`User with id 1 has been updated`);
                     expect(res.body.data.firstName).to.equal('NewFirstName');
                     expect(res.body.data.lastName).to.equal('NewLastName');
                     done();
@@ -419,6 +541,7 @@ describe('Users API', () => {
         it('TC-206-1: user does not exist', (done) => {
             chai.request(app)
                 .delete('/api/user/999')
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                 .end((err, res) => {
                     expect(res.body.status).to.equal(404);
                     expect(res.body.message).to.equal('User not found');
@@ -426,12 +549,29 @@ describe('Users API', () => {
                 });
         });
 
-        it.skip('TC-206-2: user is not logged in', (done) => {
-            done();
+        it('TC-206-2: user is not logged in', (done) => {
+            chai.request(app)
+                .delete('/api/user/1')
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(401);
+                    expect(res.body.message).to.equal('Authorization header missing!');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
         });
 
-        it.skip('TC-206-3: user is not the owner of the data', (done) => {
-            done();
+        it('TC-206-3: user is not the owner of the data', (done) => {
+            chai.request(app)
+                .delete('/api/user/2')
+                .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
+                .end((err, res) => {
+                    expect(res.body).to.be.an('object').that.has.all.keys('status', 'message', 'data');
+                    expect(res.body.status).to.equal(403);
+                    expect(res.body.message).to.equal('User is not the owner of the data');
+                    expect(res.body.data).to.be.an('object').that.is.empty;
+                    done();
+                });
         });
 
         it('TC-206-4: user deleted successfully', (done) => {
@@ -442,6 +582,7 @@ describe('Users API', () => {
                 }
                 chai.request(app)
                     .delete('/api/user/1')
+                    .set('authorization', 'Bearer ' + jwt.sign({ userId: 1 }, jwtSecretKey))
                     .end((err, res) => {
                         expect(res.body.status).to.equal(200);
                         expect(res.body.message).to.equal('User with id 1 is deleted');
@@ -459,52 +600,6 @@ describe('Users API', () => {
                         });
                     });
             });
-        });
-    });
-    //
-
-    describe('UC-303 Lijst van maaltijden opvragen', () => {
-        beforeEach((done) => {
-            logger.trace('beforeEach called');
-
-            // Reset test database
-            dbconnection.getConnection(function (err, conn) {
-                if (err) {
-                    done(err);
-                    throw err;
-                }
-                conn.query(CLEAR_DB + INSERT_USER, function (err, results, fields) {
-                    if (error) {
-                        done(err);
-                        throw err;
-                    }
-                    logger.trace('beforeEach done');
-                    dbconnection.releaseConnection(conn);
-                    done();
-                });
-            });
-        });
-
-        it.skip('TC-303-1 Lijst van maaltijden wordt succesvol geretourneerd', (done) => {
-            chai.request(server)
-                .get('/api/meal')
-                // wanneer je authenticatie gebruikt kun je hier een token meesturen
-                // .set('authorization', 'Bearer ' + jwt.sign({ id: 1 }, jwtSecretKey))
-                .end((err, res) => {
-                    assert.ifError(err);
-
-                    res.should.have.status(200);
-                    res.should.be.an('object');
-
-                    res.body.should.be.an('object').that.has.all.keys('message', 'data', 'code');
-
-                    const { code, data } = res.body;
-                    code.should.be.an('number');
-                    data.should.be.an('array').that.has.length(2);
-                    data[0].name.should.equal('Meal A');
-                    data[0].id.should.equal(1);
-                    done();
-                });
         });
     });
 });

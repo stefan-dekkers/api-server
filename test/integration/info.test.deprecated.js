@@ -9,7 +9,7 @@ require('tracer').setLevel('error');
 chai.should();
 chai.use(chaiHttp);
 
-describe('UC-102', function () {
+describe('UC-102: Info', function () {
     it('TC-102-1: Server info should return succesful information', (done) => {
         chai.request(app)
             .get('/api/info')
@@ -21,7 +21,7 @@ describe('UC-102', function () {
                 let { data, message } = res.body;
                 data.should.be.an('object');
                 data.should.has.property('studentName').to.be.equal('Stefan');
-                data.should.has.property('studentNumber').to.be.equal(1234567);
+                data.should.has.property('studentNumber').to.be.equal(2198892);
                 done();
             });
     });

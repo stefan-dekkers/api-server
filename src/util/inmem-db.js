@@ -1,3 +1,5 @@
+// In-memory database
+
 let database = {
     users: [
         {

@@ -1,15 +1,19 @@
+// User controller
+
 const assert = require('assert');
-const logger = require('../util/utils').logger;
+const { logger, jwtSecretKey } = require('../util/utils');
 const pool = require('../util/mysql-db');
-// const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
+
+const { emailValidation, passwordValidation, phoneNumberValidation } = require('./validation');
 
 const userController = {
     // UC-201: Register as new user
+
     createUser: (req, res, next) => {
         logger.info('UC-201: Register as new user');
 
         const user = req.body;
-        logger.debug('user = ', user);
 
         try {
             assert(user.firstName != null, 'firstName is missing');
@@ -22,24 +26,41 @@ const userController = {
             assert(user.password != null, 'password is missing');
             assert(typeof user.password === 'string', 'password must be a string');
             passwordValidation(user.password);
+            assert(user.phoneNumber != null, 'phoneNumber is missing');
+            assert(typeof user.phoneNumber === 'string', 'phoneNumber must be a string');
+            phoneNumberValidation(user.phoneNumber);
+            assert(user.street != null, 'street is missing');
+            assert(typeof user.street === 'string', 'street must be a string');
+            assert(user.city != null, 'city is missing');
+            assert(typeof user.city === 'string', 'city must be a string');
         } catch (err) {
             next({
                 status: 400,
                 message: err.message,
+                data: {},
             });
             return;
         }
 
         const query =
-            'INSERT INTO user (firstName, lastName, emailAddress, password) VALUES (?, ?, ?, ?)';
-        const values = [user.firstName, user.lastName, user.emailAddress, user.password];
+            'INSERT INTO user (firstName, lastName, emailAddress, password, phoneNumber, street, city) VALUES (?, ?, ?, ?, ?, ?, ?)';
+        const values = [
+            user.firstName,
+            user.lastName,
+            user.emailAddress,
+            user.password,
+            user.phoneNumber,
+            user.street,
+            user.city,
+        ];
 
         pool.getConnection(function (err, conn) {
             if (err) {
                 logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: err.code,
+                    message: [err.code, err.message],
+                    data: {},
                 });
                 return;
             }
@@ -50,34 +71,38 @@ const userController = {
                             next({
                                 status: 403,
                                 message: 'Email address already taken',
+                                data: {},
                             });
                             return;
                         } else {
                             next({
                                 status: 500,
-                                message: err.code,
+                                message: [err.code, err.message],
+                                data: {},
                             });
                             return;
                         }
                     }
-                    const insertId = results.insertId;
-                    logger.info(`User with id ${insertId} is added`);
 
-                    const selectQuery = 'SELECT * FROM user WHERE id = ?';
-                    const selectValues = [insertId];
-                    conn.query(selectQuery, selectValues, function (err, results, fields) {
+                    const insertId = results.insertId;
+
+                    conn.query('SELECT * FROM user WHERE id = ?', insertId, function (err, results, fields) {
                         if (err) {
                             next({
                                 status: 500,
-                                message: err.code,
+                                message: [err.code, err.message],
+                                data: {},
                             });
                             return;
                         }
-                        const user = results[0];
+
+                        const userData = results[0];
+                        logger.info(`User with id ${insertId} is added`);
+
                         res.status(201).json({
                             status: 201,
                             message: `User with id ${insertId} is added`,
-                            data: user,
+                            data: userData,
                         });
                     });
                     pool.releaseConnection(conn);
@@ -90,48 +115,35 @@ const userController = {
     getAllUsers: (req, res, next) => {
         logger.info('UC-202: Get users overview');
 
-        const isActive = req.query.isActive;
-        const firstName = req.query.firstName;
-        const lastName = req.query.lastName;
-        const emailAddress = req.query.emailAddress;
-        const phoneNumber = req.query.phoneNumber;
-        const roles = req.query.roles;
-        const street = req.query.street;
-        const city = req.query.city;
+        const fields = [
+            { field: 'isActive', value: req.query.isActive },
+            { field: 'firstName', value: req.query.firstName },
+            { field: 'lastName', value: req.query.lastName },
+            { field: 'emailAddress', value: req.query.emailAddress },
+            { field: 'phoneNumber', value: req.query.phoneNumber },
+            { field: 'roles', value: req.query.roles },
+            { field: 'street', value: req.query.street },
+            { field: 'city', value: req.query.city },
+        ];
 
         let query = 'SELECT * FROM user WHERE 1 = 1';
 
-        if (isActive !== undefined) {
-            query += ` AND isActive = ${isActive}`;
-        }
-        if (firstName !== undefined) {
-            query += ` AND firstName = '${firstName}'`;
-        }
-        if (lastName !== undefined) {
-            query += ` AND lastName = '${lastName}'`;
-        }
-        if (emailAddress !== undefined) {
-            query += ` AND emailAddress = '${emailAddress}'`;
-        }
-        if (phoneNumber !== undefined) {
-            query += ` AND phoneNumber = '${phoneNumber}'`;
-        }
-        if (roles !== undefined) {
-            const rolesArr = roles.split(',');
-            query += ' AND (';
-            rolesArr.forEach((role, index) => {
-                query += ` roles LIKE '%${role}%'`;
-                if (index !== rolesArr.length - 1) {
-                    query += ' OR';
-                }
+        let fieldCount = 0;
+
+        fields.forEach(({ field, value }) => {
+            if (value !== undefined) {
+                query += ` AND ${field} = '${value}'`;
+                fieldCount++;
+            }
+        });
+
+        if (fieldCount > 2) {
+            next({
+                status: 400,
+                message: 'Maximum 2 fields',
+                data: {},
             });
-            query += ')';
-        }
-        if (street !== undefined) {
-            query += ` AND street = '${street}'`;
-        }
-        if (city !== undefined) {
-            query += ` AND city = '${city}'`;
+            return;
         }
 
         pool.getConnection(function (err, conn) {
@@ -139,7 +151,8 @@ const userController = {
                 logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: err.code,
+                    message: [err.code, err.message],
+                    data: {},
                 });
                 return;
             }
@@ -147,19 +160,19 @@ const userController = {
                 conn.query(query, function (err, results, fields) {
                     if (err) {
                         next({
-                            status: 409,
-                            message: err.message,
+                            status: 500,
+                            message: [err.code, err.message],
+                            data: {},
                         });
                         return;
                     }
-                    if (results) {
-                        logger.info(`Found ${results.length} results`);
-                        res.status(200).json({
-                            status: 200,
-                            message: 'User getAll endpoint',
-                            data: results,
-                        });
-                    }
+
+                    logger.info(`Retrieved ${results.length} users successfully`);
+                    res.status(200).json({
+                        status: 200,
+                        message: `Retrieved ${results.length} users successfully`,
+                        data: results,
+                    });
                 });
                 pool.releaseConnection(conn);
             }
@@ -168,10 +181,7 @@ const userController = {
 
     // UC-203: Get user profile
     getProfile: (req, res, next) => {
-        logger.info('UC-203: Get user profile');
-
-        req.userId = 1;
-        logger.trace('Get user profile for user', req.userId);
+        logger.info(`UC-203: Get user profile, for user: ${req.userId}`);
 
         let query = 'SELECT * FROM user WHERE id=?';
 
@@ -180,28 +190,28 @@ const userController = {
                 logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: err.code,
+                    message: [err.code, err.message],
+                    data: {},
                 });
                 return;
             }
             if (conn) {
                 conn.query(query, [req.userId], (err, results, fields) => {
                     if (err) {
-                        logger.error(err.message);
                         next({
-                            status: 409,
-                            message: err.message,
+                            status: 500,
+                            message: [err.code, err.message],
+                            data: {},
                         });
                         return;
                     }
-                    if (results) {
-                        logger.trace('Found', results.length, 'results');
-                        res.status(200).json({
-                            status: 200,
-                            message: 'Get user profile',
-                            data: results[0],
-                        });
-                    }
+
+                    logger.info(`User profile with id ${req.userId}`);
+                    res.status(200).json({
+                        status: 200,
+                        message: `User profile with id ${req.userId}`,
+                        data: results[0],
+                    });
                 });
                 pool.releaseConnection(conn);
             }
@@ -213,17 +223,7 @@ const userController = {
         logger.info('UC-204: Get user with id');
 
         const userId = parseInt(req.params.userId);
-        logger.debug('userId = ', userId);
-
-        try {
-            assert(typeof userId === 'number', 'userId must be a number');
-        } catch (err) {
-            next({
-                status: 400,
-                message: err.message,
-            });
-            return;
-        }
+        logger.info(`User ${req.userId} asked for info of user ${userId}`);
 
         const userQuery = 'SELECT * FROM user WHERE id = ?';
 
@@ -232,21 +232,23 @@ const userController = {
                 logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: err.code,
+                    message: [err.code, err.message],
+                    data: {},
                 });
                 return;
             }
             if (conn) {
-                conn.query(userQuery, [userId], function (err, results, fields) {
+                conn.query(userQuery, userId, function (err, results, fields) {
                     if (err) {
                         next({
                             status: 500,
-                            message: err.code,
+                            message: [err.code, err.message],
+                            data: {},
                         });
                         return;
                     }
                     if (results && results.length > 0) {
-                        logger.info('Found user with id', userId);
+                        logger.info(`User with id ${userId} retrieved`);
                         const user = results[0];
                         res.status(200).json({
                             status: 200,
@@ -257,6 +259,7 @@ const userController = {
                         next({
                             status: 404,
                             message: `User with id ${userId} not found`,
+                            data: {},
                         });
                         return;
                     }
@@ -271,26 +274,6 @@ const userController = {
         logger.info('UC-205: Update user');
 
         const userId = parseInt(req.params.userId);
-        logger.debug('userId = ', userId);
-
-        const userUpdates = req.body;
-
-        try {
-            assert(userUpdates.emailAddress != null, 'emailAddress is missing');
-            assert(typeof userUpdates.emailAddress === 'string', 'emailAddress must be a string');
-            emailValidation(userUpdates.emailAddress);
-            assert(userId != null, 'userId is missing');
-            assert(typeof userId === 'number', 'userId must be a number');
-            if (userUpdates.phoneNumber) {
-                phoneNumberValidation(userUpdates.phoneNumber);
-            }
-        } catch (err) {
-            next({
-                status: 400,
-                message: err.message,
-            });
-            return;
-        }
 
         const userQuery = 'SELECT * FROM user WHERE id = ?';
 
@@ -299,7 +282,8 @@ const userController = {
                 logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: err.code,
+                    message: [err.code, err.message],
+                    data: {},
                 });
                 return;
             }
@@ -308,7 +292,8 @@ const userController = {
                     if (err) {
                         next({
                             status: 500,
-                            message: err.code,
+                            message: [err.code, err.message],
+                            data: {},
                         });
                         return;
                     }
@@ -316,47 +301,91 @@ const userController = {
                         next({
                             status: 404,
                             message: `User with id ${userId} not found`,
+                            data: {},
                         });
                         return;
                     }
 
                     const user = results[0];
 
-                    if (user.emailAddress !== userUpdates.emailAddress) {
-                        next({
-                            status: 400,
-                            message: 'Email address does not match with the given user id',
-                        });
-                        return;
-                    }
+                    if (req.userId == userId) {
+                        const userUpdates = req.body;
 
-                    let updatedUser = { ...user };
-
-                    // Update the user object with the new values
-                    for (const key in userUpdates) {
-                        if (key in user) {
-                            updatedUser[key] = userUpdates[key];
-                        }
-                    }
-
-                    const updateQuery = 'UPDATE user SET ? WHERE id = ?';
-                    conn.query(updateQuery, [updatedUser, userId], (err, results, fields) => {
-                        if (err) {
+                        try {
+                            assert(userUpdates.emailAddress != null, 'emailAddress is missing');
+                            assert(typeof userUpdates.emailAddress === 'string', 'emailAddress must be a string');
+                            emailValidation(userUpdates.emailAddress);
+                            assert(userId != null, 'userId is missing');
+                            assert(typeof userId === 'number', 'userId must be a number');
+                            if (userUpdates.phoneNumber) {
+                                phoneNumberValidation(userUpdates.phoneNumber);
+                            }
+                        } catch (err) {
                             next({
-                                status: 500,
-                                message: err.code,
+                                status: 400,
+                                message: err.message,
+                                data: {},
                             });
                             return;
                         }
-                        logger.info(`User with id ${userId} has been updated`);
-                        res.status(200).json({
-                            status: 200,
-                            message: `User with id ${userId} has been updated`,
-                            data: updatedUser,
-                        });
-                    });
 
-                    pool.releaseConnection(conn);
+                        if (user.emailAddress !== userUpdates.emailAddress) {
+                            next({
+                                status: 400,
+                                message: 'Email address does not match with the given user id',
+                                data: {},
+                            });
+                            return;
+                        }
+
+                        let updatedUser = { ...user };
+
+                        // Update the user object with the new values
+                        for (const key in userUpdates) {
+                            if (key in user) {
+                                updatedUser[key] = userUpdates[key];
+                            }
+                        }
+
+                        const updateQuery = 'UPDATE user SET ? WHERE id = ?';
+                        conn.query(updateQuery, [updatedUser, userId], (err, results, fields) => {
+                            if (err) {
+                                next({
+                                    status: 500,
+                                    message: [err.code, err.message],
+                                    data: {},
+                                });
+                                return;
+                            }
+
+                            conn.query('SELECT * FROM user WHERE id = ?', userId, function (err, results, fields) {
+                                if (err) {
+                                    next({
+                                        status: 500,
+                                        message: [err.code, err.message],
+                                        data: {},
+                                    });
+                                    return;
+                                }
+
+                                const updatedUserData = results[0];
+                                logger.info(`User with id ${userId} has been updated`);
+
+                                res.status(201).json({
+                                    status: 201,
+                                    message: `User with id ${userId} has been updated`,
+                                    data: updatedUserData,
+                                });
+                            });
+                            pool.releaseConnection(conn);
+                        });
+                    } else {
+                        next({
+                            status: 403,
+                            message: 'User is not the owner of the data',
+                            data: {},
+                        });
+                    }
                 });
             }
         });
@@ -367,70 +396,78 @@ const userController = {
         logger.info('UC-206: Delete user');
 
         const userId = parseInt(req.params.userId);
-        logger.debug('userId = ', userId);
 
-        const deleteQuery = 'DELETE FROM user WHERE id = ?';
+        const userQuery = 'SELECT * FROM user WHERE id = ?';
 
-        pool.getConnection(function (err, conn) {
+        pool.getConnection((err, conn) => {
             if (err) {
                 logger.error(err.code, err.syscall, err.address, err.port);
                 next({
                     status: 500,
-                    message: err.code,
+                    message: [err.code, err.message],
+                    data: {},
                 });
                 return;
             }
             if (conn) {
-                conn.query(deleteQuery, [userId], function (err, results, fields) {
+                conn.query(userQuery, [userId], (err, results, fields) => {
                     if (err) {
                         next({
                             status: 500,
-                            message: err.code,
+                            message: [err.code, err.message],
+                            data: {},
                         });
                         return;
                     }
-                    if (results.affectedRows === 0) {
+                    if (results.length === 0) {
                         next({
                             status: 404,
                             message: 'User not found',
+                            data: {},
                         });
                         return;
                     }
-                    logger.info(`User with id ${userId} is deleted`);
-                    res.status(200).json({
-                        status: 200,
-                        message: `User with id ${userId} is deleted`,
-                        data: {},
-                    });
+                    const user = results[0];
+
+                    if (req.userId == userId) {
+                        const deleteQuery = 'DELETE FROM user WHERE id = ?';
+
+                        conn.query(deleteQuery, [userId], (err, results, fields) => {
+                            if (err) {
+                                next({
+                                    status: 500,
+                                    message: [err.code, err.message],
+                                    data: {},
+                                });
+                                return;
+                            }
+                            if (results.affectedRows === 0) {
+                                next({
+                                    status: 404,
+                                    message: 'User not found',
+                                    data: {},
+                                });
+                                return;
+                            }
+                            logger.info(`User with id ${userId} is deleted`);
+                            res.status(200).json({
+                                status: 200,
+                                message: `User with id ${userId} is deleted`,
+                                data: {},
+                            });
+                        });
+                        pool.releaseConnection(conn);
+                    } else {
+                        next({
+                            status: 403,
+                            message: 'User is not the owner of the data',
+                            data: {},
+                        });
+                    }
                 });
-                pool.releaseConnection(conn);
             }
         });
     },
 };
-
-function emailValidation(emailAddress) {
-    const regEx = /^[a-zA-Z]?\.[a-zA-Z]{2,}@([a-zA-Z]{2,}\.)+[a-zA-Z]{2,3}$/gm;
-    const checkEmail = emailAddress.match(regEx);
-    if (checkEmail == null) {
-        throw new Error(`${emailAddress} is an invalid emailAddress`);
-    }
-}
-
-function passwordValidation(password) {
-    const regEx = /^(?=.*\d)(?=.*[A-Z]).{8,}$/gm;
-    const checkPassword = password.match(regEx);
-    if (checkPassword == null) {
-        throw new Error(`${password} is an invalid password`);
-    }
-}
-
-function phoneNumberValidation(phoneNumber) {
-    const regEx = /^06[- ]?\d{8}$/gm;
-    const checkPhoneNumber = phoneNumber.match(regEx);
-    if (checkPhoneNumber == null) {
-        throw new Error(`${phoneNumber} is an invalid phoneNumber`);
-    }
-}
 
 module.exports = userController;
