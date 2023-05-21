@@ -87,7 +87,7 @@ INSERT INTO `meal_participants_user` VALUES
 (1,1),
 (2,1),
 (3,1),
-(4,1)
+(4,1);
 /*!40000 ALTER TABLE `meal_participants_user` ENABLE KEYS */;
 UNLOCK TABLES;
 
