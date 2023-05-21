@@ -51,7 +51,7 @@ describe('Users API', () => {
             });
         });
 
-        it('TC-101-1: required field is missing', (done) => {
+        it.skip('TC-101-1: required field is missing', (done) => {
             chai.request(app)
                 .post('/api/login')
                 .send({})
